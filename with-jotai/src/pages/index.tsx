@@ -1,7 +1,10 @@
 import Head from 'next/head'
+import { Inter } from 'next/font/google'
 import styles from '@/styles/Home.module.css'
-import { useState,useMemo} from 'react'
-import { useQuery } from 'react-query'
+import {atom, useAtom} from 'jotai'
+import {useHydrateAtoms} from 'jotai/utils'
+
+const inter = Inter({ subsets: ['latin'] })
 
 interface Pokemon{
   id:number;
@@ -9,34 +12,29 @@ interface Pokemon{
   image:string
 }
 
-const getPokemon = (): Promise<Pokemon[]> => {
-  fetch("https://jherr-pokemon.s3.us-west-1.amazonaws.com/index.json")
-  .then((res) => res.json())
-}
+const pokemonAtom = atom<Pokemon[]>([])
+
+const filterAtom = atom("");
+
+const filteredPokemon = atom((get) => 
+  get(pokemonAtom).filter((pokemon) =>
+    pokemon.name.toLowerCase().includes(get(filterAtom).toLowerCase())))
 
 export async function  getServerSideProps(){
+  const res = await fetch("https://jherr-pokemon.s3.us-west-1.amazonaws.com/index.json");
   return{
     props:{
-      initialPokemon:await getPokemon(),
+      initialPokemon:await res.json(),
     },
   }
 }
 
 export default function Home({initialPokemon}:{initialPokemon:Pokemon[]}) {
 
-  const {data:pokemon} = useQuery("pokemon",getPokemon,{
-    initialData:initialPokemon,
-  });
+  useHydrateAtoms([[pokemonAtom,initialPokemon]] as const)
 
-  const [filter,setFilter] = useState("");
-
-  const filteredPokemon = useMemo(
-    () => 
-      initialPokemon.filter((p) =>
-      p.name.toLowerCase().includes(filter.toLowerCase()) 
-      ),
-    [filter,pokemon]
-  )
+  const [pokemon] = useAtom(filteredPokemon)
+  const [filter,setFilter] = useAtom(filterAtom);
 
   return (
     <>
@@ -54,7 +52,7 @@ export default function Home({initialPokemon}:{initialPokemon:Pokemon[]}) {
           />
         </div>
         <div className={styles.container}>
-          {filteredPokemon.slice(0,20).map((p) => (
+          {pokemon.slice(0,20).map((p) => (
             <div key={p.id} className={styles.image} >
               <img
                 alt={p.name}
